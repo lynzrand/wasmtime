@@ -28,6 +28,7 @@ wasmtime-cranelift = { workspace = true }
 wasmtime-environ = { workspace = true }
 wasmtime-wast = { workspace = true }
 wasmtime-wasi = { workspace = true }
+wasmtime-wasm2c = { workspace = true }
 wasmtime-wasi-crypto = { workspace = true, optional = true }
 wasmtime-wasi-nn = { workspace = true, optional = true }
 clap = { workspace = true, features = ["color", "suggestions", "derive"] }
@@ -43,14 +44,23 @@ rustix = { workspace = true, features = ["mm", "param"] }
 
 [dev-dependencies]
 # depend again on wasmtime to activate its default features for tests
-wasmtime = { workspace = true, features = ['component-model', 'async', 'default'] }
+wasmtime = { workspace = true, features = [
+  'component-model',
+  'async',
+  'default',
+] }
 env_logger = { workspace = true }
 log = { workspace = true }
 filecheck = "0.5.0"
 tempfile = "3.1.0"
 test-programs = { path = "crates/test-programs" }
 wasmtime-runtime = { workspace = true }
-tokio = { version = "1.8.0", features = ["rt", "time", "macros", "rt-multi-thread"] }
+tokio = { version = "1.8.0", features = [
+  "rt",
+  "time",
+  "macros",
+  "rt-multi-thread",
+] }
 wast = { workspace = true }
 criterion = "0.3.4"
 num_cpus = "1.13.0"
@@ -91,7 +101,7 @@ members = [
 ]
 exclude = [
   'crates/wasi-common/WASI/tools/witx-cli',
-  'docs/rust_wasi_markdown_parser'
+  'docs/rust_wasi_markdown_parser',
 ]
 
 [workspace.package]
@@ -114,6 +124,7 @@ wasmtime-wast = { path = "crates/wast", version = "=2.0.1" }
 wasmtime-wasi = { path = "crates/wasi", version = "2.0.1" }
 wasmtime-wasi-crypto = { path = "crates/wasi-crypto", version = "2.0.1" }
 wasmtime-wasi-nn = { path = "crates/wasi-nn", version = "2.0.1" }
+wasmtime-wasm2c = { path = "crates/wasm2c" }
 wasmtime-component-util = { path = "crates/component-util", version = "=2.0.1" }
 wasmtime-component-macro = { path = "crates/component-macro", version = "=2.0.1" }
 wasmtime-asm-macros = { path = "crates/asm-macros", version = "=2.0.1" }
@@ -156,13 +167,21 @@ windows-sys = "0.36.0"
 env_logger = "0.9"
 rustix = "0.35.10"
 log = { version = "0.4.8", default-features = false }
-object = { version = "0.29", default-features = false, features = ['read_core', 'elf', 'std'] }
-gimli = { version = "0.26.0", default-features = false, features = ['read', 'std'] }
+object = { version = "0.29", default-features = false, features = [
+  'read_core',
+  'elf',
+  'std',
+] }
+gimli = { version = "0.26.0", default-features = false, features = [
+  'read',
+  'std',
+] }
 clap = { version = "3.2.0", features = ["color", "suggestions", "derive"] }
 hashbrown = "0.12"
 cap-std = "0.26.0"
 once_cell = "1.12.0"
 smallvec = { version = "1.6.1", features = ["union"] }
+libloading = "0.7.3" # for wasm2c lib loading
 
 [features]
 default = [
@@ -178,14 +197,20 @@ jitdump = ["wasmtime/jitdump"]
 vtune = ["wasmtime/vtune"]
 wasi-crypto = ["dep:wasmtime-wasi-crypto"]
 wasi-nn = ["dep:wasmtime-wasi-nn"]
-memory-init-cow = ["wasmtime/memory-init-cow", "wasmtime-cli-flags/memory-init-cow"]
-pooling-allocator = ["wasmtime/pooling-allocator", "wasmtime-cli-flags/pooling-allocator"]
+memory-init-cow = [
+  "wasmtime/memory-init-cow",
+  "wasmtime-cli-flags/memory-init-cow",
+]
+pooling-allocator = [
+  "wasmtime/pooling-allocator",
+  "wasmtime-cli-flags/pooling-allocator",
+]
 all-arch = ["wasmtime/all-arch"]
 posix-signals-on-macos = ["wasmtime/posix-signals-on-macos"]
 component-model = [
   "wasmtime/component-model",
   "wasmtime-wast/component-model",
-  "wasmtime-cli-flags/component-model"
+  "wasmtime-cli-flags/component-model",
 ]
 
 # Stub feature that does nothing, for Cargo-features compatibility: the new

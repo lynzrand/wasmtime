@@ -3456,6 +3456,7 @@ dependencies = [
  "wasmtime-wasi",
  "wasmtime-wasi-crypto",
  "wasmtime-wasi-nn",
+ "wasmtime-wasm2c",
  "wasmtime-wast",
  "wast 47.0.1",
  "wat",
@@ -3708,6 +3709,14 @@ dependencies = [
  "thiserror",
  "walkdir",
  "wiggle",
+]
+
+[[package]]
+name = "wasmtime-wasm2c"
+version = "0.1.0"
+dependencies = [
+ "libloading",
+ "wasmtime",
 ]
 
 [[package]]
