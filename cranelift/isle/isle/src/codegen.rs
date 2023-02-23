@@ -227,12 +227,12 @@ impl<'a> Codegen<'a> {
                iter: I,
                _ctx: PhantomData<C>,
            }}
-           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> From<I> for ContextIterWrapper<Item, I, C> {{
+           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> From<I> for ContextIterWrapper<{lifetimes}Item, I, C> {{
                fn from(iter: I) -> Self {{
                    Self {{ iter, _ctx: PhantomData }}
                }}
            }}
-           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> ContextIter for ContextIterWrapper<Item, I, C> {{
+           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> ContextIter for ContextIterWrapper<{lifetimes}Item, I, C> {{
                type Context = C;
                type Output = Item;
                fn next(&mut self, _ctx: &mut Self::Context) -> Option<Self::Output> {{
