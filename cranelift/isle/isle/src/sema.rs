@@ -14,6 +14,7 @@
 //! the opposite).
 
 use crate::ast;
+use crate::ast::Pragma;
 use crate::error::*;
 use crate::lexer::Pos;
 use crate::log;
@@ -87,6 +88,9 @@ pub struct TypeEnv {
     /// The types of constant symbols.
     pub const_types: StableMap<Sym, TypeId>,
 
+    /// The list of context lifetimes.
+    pub context_lifetimes: Vec<Sym>,
+
     /// Type errors that we've found so far during type checking.
     pub errors: Vec<Error>,
 }
@@ -98,7 +102,17 @@ pub enum Type {
     ///
     /// These are always defined externally, and we allow literals of these
     /// types to pass through from ISLE source code to the emitted Rust code.
-    Primitive(TypeId, Sym, Pos),
+    Primitive {
+        /// This primitive type's type id.
+        id: TypeId,
+        /// The name of this primitive type.
+        name: Sym,
+        /// The lifetimes used by this primitive type. An empty vector means
+        /// no lifetime is used.
+        lifetimes: Vec<Sym>,
+        /// The ISLE source position where this primitive type is defined.
+        pos: Pos,
+    },
 
     /// A sum type.
     ///
@@ -128,20 +142,20 @@ impl Type {
     /// Get the name of this `Type`.
     pub fn name<'a>(&self, tyenv: &'a TypeEnv) -> &'a str {
         match self {
-            Self::Primitive(_, name, _) | Self::Enum { name, .. } => &tyenv.syms[name.index()],
+            Self::Primitive { name, .. } | Self::Enum { name, .. } => &tyenv.syms[name.index()],
         }
     }
 
     /// Get the position where this type was defined.
     pub fn pos(&self) -> Pos {
         match self {
-            Self::Primitive(_, _, pos) | Self::Enum { pos, .. } => *pos,
+            Self::Primitive { pos, .. } | Self::Enum { pos, .. } => *pos,
         }
     }
 
     /// Is this a primitive type?
     pub fn is_prim(&self) -> bool {
-        matches!(self, Type::Primitive(..))
+        matches!(self, Type::Primitive { .. })
     }
 }
 
@@ -910,6 +924,7 @@ impl TypeEnv {
             types: vec![],
             type_map: StableMap::new(),
             const_types: StableMap::new(),
+            context_lifetimes: vec![],
             errors: vec![],
         };
 
@@ -1006,7 +1021,17 @@ impl TypeEnv {
                     self.report_error(ty.pos, "primitive types cannot be marked `extern`");
                     return None;
                 }
-                Some(Type::Primitive(tid, self.intern_mut(id), ty.pos))
+                let ident = &id.name;
+                let lifetimes = &id.lifetimes;
+                Some(Type::Primitive {
+                    id: tid,
+                    name: self.intern_mut(ident),
+                    lifetimes: lifetimes
+                        .iter()
+                        .map(|l| self.intern_mut(l))
+                        .collect::<Vec<_>>(),
+                    pos: ty.pos,
+                })
             }
             &ast::TypeValue::Enum(ref ty_variants, ..) => {
                 if ty.is_extern && ty.is_nodebug {
@@ -1168,7 +1193,7 @@ impl TermEnv {
             converters: StableMap::new(),
         };
 
-        env.collect_pragmas(defs);
+        env.collect_pragmas(tyenv, defs);
         env.collect_term_sigs(tyenv, defs);
         env.collect_enum_variant_terms(tyenv);
         tyenv.return_errors()?;
@@ -2472,16 +2497,17 @@ mod test {
         assert_eq!(tyenv.type_map.get(&sym_a).unwrap(), &TypeId(1));
 
         let expected_types = vec![
-            Type::Primitive(
-                TypeId(0),
-                sym_u32,
-                Pos {
+            Type::Primitive {
+                id: TypeId(0),
+                name: sym_u32,
+                lifetimes: vec![],
+                pos: Pos {
                     file: 0,
                     offset: 19,
                     line: 2,
                     col: 0,
                 },
-            ),
+            },
             Type::Enum {
                 name: sym_a,
                 id: TypeId(1),

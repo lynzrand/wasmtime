@@ -33,7 +33,30 @@ pub struct Ident(pub String, pub Pos);
 /// Pragmas parsed with the `(pragma <ident>)` syntax.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Pragma {
-    // currently, no pragmas are defined, but the infrastructure is useful to keep around
+    /// `pragma context_lifetime`, allows a lifetime parameter to be added to the context.
+    ///
+    /// This pragma adds one or more lifetime parameters to the context trait (`Context<'a, 'b>`),
+    /// so that it can return references or other types with lifetimes that are tied to the context,
+    /// instead of the `&mut self` borrows that are used at each context method call.
+    ///
+    /// # Grammar
+    ///
+    /// Lifetimes are represented as `Ident`s that start with a single quote, e.g. `'a`.
+    ///
+    /// ```lisp
+    /// (pragma context_lifetime 'a 'b 'c)
+    /// ```
+    ///
+    /// The lifetimes translate to the lifetimes on the context trait directly. Thus, the above
+    /// code will generate a context trait like:
+    ///
+    /// ```rust
+    /// trait Context<'a, 'b, 'c> {
+    ///     // ...
+    /// }
+    /// ```
+    ContextLifetime(Vec<Ident>),
+    // currently, no other pragmas are defined, but the infrastructure is useful to keep around
 }
 
 /// A declaration of a type.
@@ -51,8 +74,14 @@ pub struct Type {
 /// TODO: add structs as well?
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum TypeValue {
-    Primitive(Ident, Pos),
+    Primitive(Primitive, Pos),
     Enum(Vec<Variant>, Pos),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Primitive {
+    pub name: Ident,
+    pub lifetimes: Vec<Ident>,
 }
 
 /// One variant of an enum type.

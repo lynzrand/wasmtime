@@ -172,10 +172,13 @@ impl<'a> Parser<'a> {
             .chars()
             .next()
             .ok_or_else(|| self.error(pos, "empty symbol".into()))?;
-        if !first.is_alphabetic() && first != '_' && first != '$' {
+        if !first.is_alphabetic() && first != '_' && first != '$' && first != '\'' {
             return Err(self.error(
                 pos,
-                format!("Identifier '{}' does not start with letter or _ or $", s),
+                format!(
+                    "Identifier '{}' does not start with letter or _ or $ or '",
+                    s
+                ),
             ));
         }
         if s.chars()
@@ -215,8 +218,27 @@ impl<'a> Parser<'a> {
 
     fn parse_pragma(&mut self) -> Result<Pragma> {
         let ident = self.parse_ident()?;
-        // currently, no pragmas are defined, but the infrastructure is useful to keep around
+
         match ident.0.as_str() {
+            "context_lifetime" => {
+                // (pragma context_lifetime ...lifetimes)
+                // accepts a list of identifiers that start with a single quote.
+                let mut lifetimes = vec![];
+
+                while !self.is_rparen() {
+                    let lifetime = self.parse_ident()?;
+                    if !lifetime.0.starts_with('\'') {
+                        return Err(self.error(
+                            lifetime.1,
+                            "context_lifetime must be a list of identifiers that start with a single quote.".to_string(),
+                        ));
+                    }
+                    lifetimes.push(lifetime);
+                }
+
+                Ok(Pragma::ContextLifetime(lifetimes))
+            }
+
             pragma => Err(self.error(ident.1, format!("Unknown pragma '{}'", pragma))),
         }
     }
@@ -256,9 +278,9 @@ impl<'a> Parser<'a> {
         let pos = self.pos();
         self.expect_lparen()?;
         if self.eat_sym_str("primitive")? {
-            let primitive_ident = self.parse_ident()?;
+            let primitive = self.parse_primitive_type()?;
             self.expect_rparen()?;
-            Ok(TypeValue::Primitive(primitive_ident, pos))
+            Ok(TypeValue::Primitive(primitive, pos))
         } else if self.eat_sym_str("enum")? {
             let mut variants = vec![];
             while !self.is_rparen() {
@@ -269,6 +291,30 @@ impl<'a> Parser<'a> {
             Ok(TypeValue::Enum(variants, pos))
         } else {
             Err(self.error(pos, "Unknown type definition".to_string()))
+        }
+    }
+
+    fn parse_primitive_type(&mut self) -> Result<Primitive> {
+        if self.is_sym() {
+            // <primitivetype> ::= <ident>
+            let ident = self.parse_ident()?;
+            Ok(Primitive {
+                name: ident,
+                lifetimes: vec![],
+            })
+        } else {
+            // <primitivetype> ::= "(" <ident> <lifetime-ident>* ")"
+            self.expect_lparen()?;
+            let ident = self.parse_ident()?;
+            let mut lifetimes = vec![];
+            while !self.is_rparen() {
+                lifetimes.push(self.parse_ident()?);
+            }
+            self.expect_rparen()?;
+            Ok(Primitive {
+                name: ident,
+                lifetimes,
+            })
         }
     }
 
