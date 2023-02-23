@@ -223,16 +223,17 @@ impl<'a> Codegen<'a> {
                fn next(&mut self, ctx: &mut Self::Context) -> Option<Self::Output>;
            }}
 
-           pub struct ContextIterWrapper<{lifetimes}Item, I: Iterator < Item = Item>, C: {ctx}> {{
+           pub struct ContextIterWrapper<Item, I, C> {{
                iter: I,
                _ctx: PhantomData<C>,
+               _item: PhantomData<Item>, // To make existing code happy
            }}
-           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> From<I> for ContextIterWrapper<{lifetimes}Item, I, C> {{
+           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> From<I> for ContextIterWrapper<Item, I, C> {{
                fn from(iter: I) -> Self {{
-                   Self {{ iter, _ctx: PhantomData }}
+                   Self {{ iter, _ctx: PhantomData, _item: PhantomData }}
                }}
            }}
-           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> ContextIter for ContextIterWrapper<{lifetimes}Item, I, C> {{
+           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> ContextIter for ContextIterWrapper<Item, I, C>{{
                type Context = C;
                type Output = Item;
                fn next(&mut self, _ctx: &mut Self::Context) -> Option<Self::Output> {{
@@ -358,8 +359,8 @@ impl<'a> Codegen<'a> {
             }
 
             write!(ctx.out, "{}) -> ", &ctx.indent)?;
-            let (_, ret) = self.ty(sig.ret_tys[0]);
-            let ret = &self.typeenv.syms[ret.index()];
+            let ret_typeid = sig.ret_tys[0];
+            let ret = self.type_name(ret_typeid, false);
             match sig.ret_kind {
                 ReturnKind::Iterator => {
                     write!(ctx.out, "impl ContextIter<Context = C, Output = {}>", ret)?
@@ -483,9 +484,9 @@ impl<'a> Codegen<'a> {
                         }
                         write!(f, "{}", self.typeenv.syms[lifetime.index()])?;
                     }
-                }
-                if self.trailing_comma {
-                    write!(f, ", ")?;
+                    if self.trailing_comma {
+                        write!(f, ", ")?;
+                    }
                 }
                 Ok(())
             }
