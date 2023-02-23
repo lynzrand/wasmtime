@@ -1423,18 +1423,23 @@ newline). The grammar accepted by the parser is as follows:
         | "(" "rule" <rule> ")"
         | "(" "extractor" <etor> ")"
         | "(" "extern" <extern> ")"
+        | "(" "pragma" <pragma> ")"
         
 <typedecl> ::= <ident> [ "extern" ] <typevalue>
 
 <ident> ::= ( "A".."Z" | "a".."z" | "_" | "$" )
             ( "A".."Z" | "a".."z" | "_" | "$" | "0".."9" | "." )*
 <const-ident> ::= "$" ( "A".."Z" | "a".."z" | "_" | "$" | "0".."9" | "." )*
+<lifetime-ident> ::= "'" ( "A".."Z" | "a".."z" | "_" | "$" | "0".."9" | "." )*
 
 <int> ::= [ "-" ] ( "0".."9" )+
         | [ "-" ] "0x" ( "0".."9" "A".."F" "a".."f" )+
 
-<typevalue> ::= "(" "primitive" <ident> ")"
+<typevalue> ::= "(" "primitive" <primitivetype> ")"
               | "(" "enum" <enumvariant>* ")"
+
+<primitivetype> ::= <ident>
+                  | "(" <ident> <lifetime-ident>* ")"
 
 <enumvariant> ::= <ident>
                 | "(" <ident> <enumfield>* ")"
@@ -1476,4 +1481,6 @@ newline). The grammar accepted by the parser is as follows:
 <extern> ::= "constructor" <ident> <ident>
            | "extractor" [ "infallible" ] <ident> <ident>
            | "const" <const-ident> <ident> <ty>
+
+<pragma> ::= "context_lifetime" <lifetime-ident>*
 ```
