@@ -4,7 +4,7 @@ use crate::sema::{ExternalSig, ReturnKind, Sym, Term, TermEnv, TermId, Type, Typ
 use crate::serialize::{Block, ControlFlow, EvalStep, MatchArm};
 use crate::trie_again::{Binding, BindingId, Constraint, RuleSet};
 use crate::StableSet;
-use std::fmt::Write;
+use std::fmt::{Display, Write};
 
 /// Options for code generation.
 #[derive(Clone, Debug, Default)]
@@ -202,7 +202,7 @@ impl<'a> Codegen<'a> {
             "/// A mutable borrow is passed along through all lowering logic."
         )
         .unwrap();
-        writeln!(code, "pub trait Context {{").unwrap();
+        writeln!(code, "pub trait {} {{", self.context()).unwrap();
         for term in &self.termenv.terms {
             if term.has_external_extractor() {
                 let ext_sig = term.extractor_sig(self.typeenv).unwrap();
@@ -223,16 +223,16 @@ impl<'a> Codegen<'a> {
                fn next(&mut self, ctx: &mut Self::Context) -> Option<Self::Output>;
            }}
 
-           pub struct ContextIterWrapper<Item, I: Iterator < Item = Item>, C: Context> {{
+           pub struct ContextIterWrapper<{lifetimes}Item, I: Iterator < Item = Item>, C: {ctx}> {{
                iter: I,
                _ctx: PhantomData<C>,
            }}
-           impl<Item, I: Iterator<Item = Item>, C: Context> From<I> for ContextIterWrapper<Item, I, C> {{
+           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> From<I> for ContextIterWrapper<Item, I, C> {{
                fn from(iter: I) -> Self {{
                    Self {{ iter, _ctx: PhantomData }}
                }}
            }}
-           impl<Item, I: Iterator<Item = Item>, C: Context> ContextIter for ContextIterWrapper<Item, I, C> {{
+           impl<{lifetimes}Item, I: Iterator<Item = Item>, C: {ctx}> ContextIter for ContextIterWrapper<Item, I, C> {{
                type Context = C;
                type Output = Item;
                fn next(&mut self, _ctx: &mut Self::Context) -> Option<Self::Output> {{
@@ -240,6 +240,8 @@ impl<'a> Codegen<'a> {
                }}
            }}
            "#,
+           lifetimes = self.context_lifetimes_only(true),
+           ctx = self.context(),
         )
             .unwrap();
     }
@@ -302,7 +304,12 @@ impl<'a> Codegen<'a> {
 
     fn type_name(&self, typeid: TypeId, by_ref: bool) -> String {
         match &self.typeenv.types[typeid.index()] {
-            &Type::Primitive(_, sym, _) => self.typeenv.syms[sym.index()].clone(),
+            &Type::Primitive {
+                id: _,
+                name: sym,
+                lifetimes: _,
+                pos: _,
+            } => self.typeenv.syms[sym.index()].clone(),
             &Type::Enum { name, .. } => {
                 let r = if by_ref { "&" } else { "" };
                 format!("{}{}", r, self.typeenv.syms[name.index()])
@@ -327,8 +334,11 @@ impl<'a> Codegen<'a> {
             let sig = termdata.constructor_sig(self.typeenv).unwrap();
             writeln!(
                 ctx.out,
-                "{}pub fn {}<C: Context>(",
-                &ctx.indent, sig.func_name
+                "{}pub fn {}<{}C: {}>(",
+                &ctx.indent,
+                sig.func_name,
+                self.context_lifetimes_only(true),
+                self.context()
             )?;
 
             writeln!(ctx.out, "{}    ctx: &mut C,", &ctx.indent)?;
@@ -405,8 +415,88 @@ impl<'a> Codegen<'a> {
 
     fn ty(&self, typeid: TypeId) -> (bool, Sym) {
         match &self.typeenv.types[typeid.index()] {
-            &Type::Primitive(_, sym, _) => (false, sym),
+            &Type::Primitive {
+                id: _,
+                name: sym,
+                lifetimes: _,
+                pos: _,
+            } => (false, sym),
             &Type::Enum { name, .. } => (true, name),
+        }
+    }
+
+    fn type_with_lifetime<'s>(
+        &'s self,
+        typename: &'s str,
+        lifetimes: &'s [Sym],
+    ) -> impl Display + 's {
+        struct ContextLifetimeWriter<'a> {
+            typename: &'a str,
+            typeenv: &'a TypeEnv,
+            lifetimes: &'a [Sym],
+        }
+
+        impl<'a> Display for ContextLifetimeWriter<'a> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.typename)?;
+
+                if self.lifetimes.is_empty() {
+                    Ok(())
+                } else {
+                    write!(f, "<")?;
+                    for (i, lifetime) in self.lifetimes.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", self.typeenv.syms[lifetime.index()])?;
+                    }
+                    write!(f, ">")?;
+                    Ok(())
+                }
+            }
+        }
+
+        ContextLifetimeWriter {
+            typename,
+            typeenv: self.typeenv,
+            lifetimes,
+        }
+    }
+
+    fn context(&self) -> impl Display + '_ {
+        self.type_with_lifetime("Context", &self.typeenv.context_lifetimes)
+    }
+
+    fn context_lifetimes_only(&self, trailing_comma: bool) -> impl Display + '_ {
+        struct LifetimesOnly<'a> {
+            lifetimes: &'a [Sym],
+            typeenv: &'a TypeEnv,
+            trailing_comma: bool,
+        }
+
+        impl<'a> Display for LifetimesOnly<'a> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                if self.lifetimes.is_empty() {
+                    // No lifetimes, so no need to write anything.
+                } else {
+                    for (i, lifetime) in self.lifetimes.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", self.typeenv.syms[lifetime.index()])?;
+                    }
+                }
+                if self.trailing_comma {
+                    write!(f, ", ")?;
+                }
+                Ok(())
+            }
+        }
+
+        LifetimesOnly {
+            lifetimes: &self.typeenv.context_lifetimes,
+            typeenv: self.typeenv,
+            trailing_comma,
         }
     }
 

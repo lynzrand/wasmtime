@@ -1,6 +1,4 @@
-//! Semantic analysis.
-//!
-//! This module primarily contains the type environment and term environment.
+//! SemantType::Primitive { field1: .. }! This module primarily contains the type environment and term environment.
 //!
 //! The type environment is constructed by analyzing an input AST. The type
 //! environment records the types used in the input source and the types of our
@@ -1212,9 +1210,19 @@ impl TermEnv {
         Ok(env)
     }
 
-    fn collect_pragmas(&mut self, _: &ast::Defs) {
-        // currently, no pragmas are defined, but the infrastructure is useful to keep around
-        return;
+    fn collect_pragmas(&mut self, tyenv: &mut TypeEnv, defs: &ast::Defs) {
+        for def in &defs.defs {
+            if let ast::Def::Pragma(pragma) = def {
+                match pragma {
+                    Pragma::ContextLifetime(lifetimes) => {
+                        for lifetime in lifetimes {
+                            let sym = tyenv.intern_mut(lifetime);
+                            tyenv.context_lifetimes.push(sym);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn collect_term_sigs(&mut self, tyenv: &mut TypeEnv, defs: &ast::Defs) {
