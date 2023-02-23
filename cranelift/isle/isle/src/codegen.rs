@@ -304,12 +304,15 @@ impl<'a> Codegen<'a> {
 
     fn type_name(&self, typeid: TypeId, by_ref: bool) -> String {
         match &self.typeenv.types[typeid.index()] {
-            &Type::Primitive {
+            Type::Primitive {
                 id: _,
                 name: sym,
-                lifetimes: _,
+                lifetimes,
                 pos: _,
-            } => self.typeenv.syms[sym.index()].clone(),
+            } => {
+                let typename = &self.typeenv.syms[sym.index()];
+                self.type_with_lifetime(typename, lifetimes).to_string()
+            }
             &Type::Enum { name, .. } => {
                 let r = if by_ref { "&" } else { "" };
                 format!("{}{}", r, self.typeenv.syms[name.index()])
@@ -343,14 +346,9 @@ impl<'a> Codegen<'a> {
 
             writeln!(ctx.out, "{}    ctx: &mut C,", &ctx.indent)?;
             for (i, &ty) in sig.param_tys.iter().enumerate() {
-                let (is_ref, sym) = self.ty(ty);
+                let (is_ref, _sym) = self.ty(ty);
                 write!(ctx.out, "{}    arg{}: ", &ctx.indent, i)?;
-                write!(
-                    ctx.out,
-                    "{}{}",
-                    if is_ref { "&" } else { "" },
-                    &self.typeenv.syms[sym.index()]
-                )?;
+                write!(ctx.out, "{}", self.type_name(ty, is_ref))?;
                 if let Some(binding) = ctx.ruleset.find_binding(&Binding::Argument {
                     index: i.try_into().unwrap(),
                 }) {
